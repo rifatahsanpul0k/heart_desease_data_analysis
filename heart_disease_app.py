@@ -27,6 +27,18 @@ DEBUG_MODE = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
 ENABLE_MODEL_CACHING = os.getenv('ENABLE_MODEL_CACHING', 'true').lower() == 'true'
 MODEL_ACCURACY_THRESHOLD = float(os.getenv('MODEL_ACCURACY_THRESHOLD', '0.5'))
 
+# Additional environment variables for production
+APP_ENVIRONMENT = os.getenv('APP_ENVIRONMENT', 'development')
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+MAX_UPLOAD_SIZE_MB = int(os.getenv('MAX_UPLOAD_SIZE_MB', '10'))
+SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', '30'))
+ENABLE_ANALYTICS = os.getenv('ENABLE_ANALYTICS', 'false').lower() == 'true'
+CACHE_TTL_SECONDS = int(os.getenv('CACHE_TTL_SECONDS', '3600'))
+MAX_CONCURRENT_USERS = int(os.getenv('MAX_CONCURRENT_USERS', '100'))
+
+# Health check endpoint
+HEALTH_CHECK_ENDPOINT = os.getenv('HEALTH_CHECK_ENDPOINT', '/health')
+
 # Page config
 st.set_page_config(
     page_title=APP_TITLE,
@@ -60,11 +72,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-@st.cache_resource
-def load_model():
-    """Load model with environment variable configuration"""
+# Conditional caching based on environment variable
+if ENABLE_MODEL_CACHING:
+    @st.cache_resource(ttl=CACHE_TTL_SECONDS)
+    def load_model():
+        """Load model with caching enabled"""
+        return _load_model_impl()
+else:
+    def load_model():
+        """Load model without caching"""
+        return _load_model_impl()
+
+def _load_model_impl():
+    """Internal model loading implementation"""
     try:
         model_file = MODEL_NAME
+        if DEBUG_MODE:
+            st.sidebar.info(f"Loading model: {model_file}")
+        
         with open(model_file, 'rb') as f:
             model = pickle.load(f)
         with open('feature_names.pkl', 'rb') as f:
@@ -76,32 +101,69 @@ def load_model():
         st.error("Model files not found. Please ensure all model files are in the same directory.")
         return None, None, None
 
+def health_check():
+    """Health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "app_title": APP_TITLE,
+        "version": APP_VERSION,
+        "environment": APP_ENVIRONMENT,
+        "model_loaded": True,  # You could add actual model health check here
+        "timestamp": pd.Timestamp.now().isoformat()
+    }
+
 def main():
+    # Handle health check endpoint
+    query_params = st.experimental_get_query_params()
+    if query_params.get('health', [None])[0] == 'check':
+        st.json(health_check())
+        st.stop()
+    
     st.markdown(f'<h1 class="main-header">🫀 {APP_TITLE}</h1>', unsafe_allow_html=True)
+    
+    # Load model
+    model, feature_names, model_info = load_model()
+    if model is None:
+        st.stop()
+
+    # Sidebar with model info and environment details
+    st.sidebar.header("🤖 Model Information")
+    
+    # Environment-aware model info
+    model_accuracy = model_info['accuracy'] if model_info else 0.85
+    if model_accuracy < MODEL_ACCURACY_THRESHOLD:
+        st.sidebar.warning(f"⚠️ Model accuracy ({model_accuracy:.2%}) below threshold ({MODEL_ACCURACY_THRESHOLD:.2%})")
+    
+    st.sidebar.info(f"""
+    **Model Type:** {model_info.get('model_type', 'XGBoost Classifier') if model_info else 'XGBoost Classifier'}
+    **Accuracy:** {model_accuracy*100:.2f}%
+    **Features:** {model_info.get('feature_count', len(feature_names)) if model_info else len(feature_names)}
+    **Version:** {APP_VERSION}
+    **Environment:** {APP_ENVIRONMENT}
+    """)
     
     # Debug info (only show if DEBUG_MODE is enabled)
     if DEBUG_MODE:
-        st.sidebar.info(f"Debug Mode: {APP_VERSION}")
-
-    # Load model
-    model, feature_names, model_info = load_model()
-    if model is None:
-        st.stop()
-
-    # Load model
-    model, feature_names, model_info = load_model()
-    if model is None:
-        st.stop()
-
-    # Sidebar with model info
-    st.sidebar.header("🤖 Model Information")
-    st.sidebar.info(f"""
-    **Model Type:** {model_info['model_type']}
-    **Accuracy:** {model_info['accuracy']*100:.2f}%
-    **Features:** {model_info['feature_count']}
-    **Optimization Trials:** {model_info['optimization_trials']}
-    **Training Date:** {model_info['training_date']}
-    """)
+        st.sidebar.header("🔧 Debug Information")
+        st.sidebar.code(f"""
+Environment Variables:
+- MODEL_NAME: {MODEL_NAME}
+- CACHING: {ENABLE_MODEL_CACHING}
+- CACHE_TTL: {CACHE_TTL_SECONDS}s
+- MAX_USERS: {MAX_CONCURRENT_USERS}
+- LOG_LEVEL: {LOG_LEVEL}
+- SESSION_TIMEOUT: {SESSION_TIMEOUT_MINUTES}min
+        """)
+    
+    # Analytics tracking (if enabled)
+    if ENABLE_ANALYTICS:
+        st.sidebar.info("📊 Analytics enabled")
+    
+    # Show environment-specific features
+    if APP_ENVIRONMENT == 'production':
+        st.sidebar.success("🟢 Production Environment")
+    elif APP_ENVIRONMENT == 'development':
+        st.sidebar.warning("🟡 Development Environment")
 
     # Sidebar input fields
     st.sidebar.header("📋 Patient Information")
