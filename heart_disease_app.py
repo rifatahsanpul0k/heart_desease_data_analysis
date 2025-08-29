@@ -7,11 +7,29 @@ import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.metrics import classification_report
 import warnings
+import os
+
 warnings.filterwarnings('ignore')
+
+# Load environment variables (with fallback for compatibility)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not available, use system environment variables only
+    pass
+
+# Configuration from environment variables with defaults
+APP_TITLE = os.getenv('APP_TITLE', 'Heart Disease Risk Predictor')
+APP_VERSION = os.getenv('APP_VERSION', '1.0.0')
+MODEL_NAME = os.getenv('MODEL_NAME', 'optimized_xgb_model.pkl')
+DEBUG_MODE = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
+ENABLE_MODEL_CACHING = os.getenv('ENABLE_MODEL_CACHING', 'true').lower() == 'true'
+MODEL_ACCURACY_THRESHOLD = float(os.getenv('MODEL_ACCURACY_THRESHOLD', '0.5'))
 
 # Page config
 st.set_page_config(
-    page_title="Heart Disease Predictor",
+    page_title=APP_TITLE,
     page_icon="🫀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -44,8 +62,10 @@ st.markdown("""
 
 @st.cache_resource
 def load_model():
+    """Load model with environment variable configuration"""
     try:
-        with open('optimized_xgb_model.pkl', 'rb') as f:
+        model_file = MODEL_NAME
+        with open(model_file, 'rb') as f:
             model = pickle.load(f)
         with open('feature_names.pkl', 'rb') as f:
             feature_names = pickle.load(f)
@@ -57,7 +77,16 @@ def load_model():
         return None, None, None
 
 def main():
-    st.markdown('<h1 class="main-header">🫀 Heart Disease Risk Predictor</h1>', unsafe_allow_html=True)
+    st.markdown(f'<h1 class="main-header">🫀 {APP_TITLE}</h1>', unsafe_allow_html=True)
+    
+    # Debug info (only show if DEBUG_MODE is enabled)
+    if DEBUG_MODE:
+        st.sidebar.info(f"Debug Mode: {APP_VERSION}")
+
+    # Load model
+    model, feature_names, model_info = load_model()
+    if model is None:
+        st.stop()
 
     # Load model
     model, feature_names, model_info = load_model()
