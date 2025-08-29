@@ -152,6 +152,12 @@ Temporary Items
 models/
 checkpoints/
 
+# Allow specific model files for deployment
+!optimized_xgb_model.pkl
+!optimized_xgb_model.joblib
+!feature_names.pkl
+!model_info.pkl
+
 # Large data files (uncomment if you want to exclude data files)
 # *.csv
 # *.json
