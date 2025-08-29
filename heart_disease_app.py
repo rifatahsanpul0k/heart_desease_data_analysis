@@ -114,10 +114,20 @@ def health_check():
 
 def main():
     # Handle health check endpoint
-    query_params = st.experimental_get_query_params()
-    if query_params.get('health', [None])[0] == 'check':
-        st.json(health_check())
-        st.stop()
+    try:
+        query_params = st.query_params
+        if query_params.get('health') == 'check':
+            st.json(health_check())
+            st.stop()
+    except:
+        # Fallback for older Streamlit versions
+        try:
+            query_params = st.experimental_get_query_params()
+            if query_params.get('health', [None])[0] == 'check':
+                st.json(health_check())
+                st.stop()
+        except:
+            pass  # Continue normally if query params fail
     
     st.markdown(f'<h1 class="main-header">🫀 {APP_TITLE}</h1>', unsafe_allow_html=True)
     
