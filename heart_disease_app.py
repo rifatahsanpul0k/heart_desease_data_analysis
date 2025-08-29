@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
+import joblib
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.metrics import classification_report
@@ -22,7 +23,7 @@ except ImportError:
 # Configuration from environment variables with defaults
 APP_TITLE = os.getenv('APP_TITLE', 'Heart Disease Risk Predictor')
 APP_VERSION = os.getenv('APP_VERSION', '1.0.0')
-MODEL_NAME = os.getenv('MODEL_NAME', 'optimized_xgb_model.pkl')
+MODEL_NAME = os.getenv('MODEL_NAME', 'optimized_xgb_model.joblib')
 DEBUG_MODE = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
 ENABLE_MODEL_CACHING = os.getenv('ENABLE_MODEL_CACHING', 'true').lower() == 'true'
 MODEL_ACCURACY_THRESHOLD = float(os.getenv('MODEL_ACCURACY_THRESHOLD', '0.5'))
@@ -90,15 +91,25 @@ def _load_model_impl():
         if DEBUG_MODE:
             st.sidebar.info(f"Loading model: {model_file}")
         
-        with open(model_file, 'rb') as f:
-            model = pickle.load(f)
+        # Load model with appropriate loader based on file extension
+        if model_file.endswith('.joblib'):
+            model = joblib.load(model_file)
+        else:
+            with open(model_file, 'rb') as f:
+                model = pickle.load(f)
+        
+        # Load feature names and model info
         with open('feature_names.pkl', 'rb') as f:
             feature_names = pickle.load(f)
         with open('model_info.pkl', 'rb') as f:
             model_info = pickle.load(f)
         return model, feature_names, model_info
-    except FileNotFoundError:
-        st.error("Model files not found. Please ensure all model files are in the same directory.")
+    except FileNotFoundError as e:
+        st.error(f"Model files not found: {str(e)}")
+        st.error("Please ensure all model files are in the same directory.")
+        return None, None, None
+    except Exception as e:
+        st.error(f"Error loading model: {str(e)}")
         return None, None, None
 
 def health_check():
