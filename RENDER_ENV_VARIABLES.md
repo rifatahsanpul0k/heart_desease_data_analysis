@@ -6,7 +6,7 @@ Copy and paste these environment variables into your Render service dashboard:
 
 APP_TITLE=Heart Disease Risk Predictor
 APP_VERSION=1.2.0
-MODEL_NAME=optimized_xgb_model.joblib
+MODEL_NAME=optimized_xgb_model.pkl
 APP_ENVIRONMENT=production
 DEBUG_MODE=false
 LOG_LEVEL=INFO

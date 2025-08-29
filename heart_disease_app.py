@@ -23,7 +23,7 @@ except ImportError:
 # Configuration from environment variables with defaults
 APP_TITLE = os.getenv('APP_TITLE', 'Heart Disease Risk Predictor')
 APP_VERSION = os.getenv('APP_VERSION', '1.0.0')
-MODEL_NAME = os.getenv('MODEL_NAME', 'optimized_xgb_model.joblib')
+MODEL_NAME = os.getenv('MODEL_NAME', 'optimized_xgb_model.pkl')
 DEBUG_MODE = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
 ENABLE_MODEL_CACHING = os.getenv('ENABLE_MODEL_CACHING', 'true').lower() == 'true'
 MODEL_ACCURACY_THRESHOLD = float(os.getenv('MODEL_ACCURACY_THRESHOLD', '0.5'))
