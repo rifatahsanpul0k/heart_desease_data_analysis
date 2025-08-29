@@ -90,6 +90,15 @@ def _load_model_impl():
         model_file = MODEL_NAME
         if DEBUG_MODE:
             st.sidebar.info(f"Loading model: {model_file}")
+            st.sidebar.info(f"Current directory: {os.getcwd()}")
+            st.sidebar.info(f"Files available: {os.listdir('.')}")
+        
+        # Check if file exists
+        if not os.path.exists(model_file):
+            available_files = [f for f in os.listdir('.') if f.endswith(('.pkl', '.joblib'))]
+            st.error(f"Model file '{model_file}' not found!")
+            st.error(f"Available model files: {available_files}")
+            return None, None, None
         
         # Load model with appropriate loader based on file extension
         if model_file.endswith('.joblib'):
@@ -98,18 +107,38 @@ def _load_model_impl():
             with open(model_file, 'rb') as f:
                 model = pickle.load(f)
         
+        if DEBUG_MODE:
+            st.sidebar.success(f"✅ Model loaded: {type(model)}")
+        
         # Load feature names and model info
+        if not os.path.exists('feature_names.pkl'):
+            st.error("feature_names.pkl not found!")
+            return None, None, None
+            
+        if not os.path.exists('model_info.pkl'):
+            st.error("model_info.pkl not found!")
+            return None, None, None
+            
         with open('feature_names.pkl', 'rb') as f:
             feature_names = pickle.load(f)
         with open('model_info.pkl', 'rb') as f:
             model_info = pickle.load(f)
+            
+        if DEBUG_MODE:
+            st.sidebar.success("✅ All files loaded successfully")
+            
         return model, feature_names, model_info
+        
     except FileNotFoundError as e:
-        st.error(f"Model files not found: {str(e)}")
+        st.error(f"❌ Model files not found: {str(e)}")
         st.error("Please ensure all model files are in the same directory.")
         return None, None, None
     except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
+        st.error(f"❌ Error loading model: {str(e)}")
+        st.error(f"Error type: {type(e).__name__}")
+        if DEBUG_MODE:
+            import traceback
+            st.error(f"Full traceback: {traceback.format_exc()}")
         return None, None, None
 
 def health_check():
@@ -124,21 +153,24 @@ def health_check():
     }
 
 def main():
-    # Handle health check endpoint
+    # Handle health check endpoint with better error handling
+    health_check_requested = False
     try:
-        query_params = st.query_params
-        if query_params.get('health') == 'check':
-            st.json(health_check())
-            st.stop()
-    except:
-        # Fallback for older Streamlit versions
-        try:
+        # Try new Streamlit API first
+        if hasattr(st, 'query_params'):
+            query_params = st.query_params
+            health_check_requested = query_params.get('health') == 'check'
+        else:
+            # Fallback to experimental API
             query_params = st.experimental_get_query_params()
-            if query_params.get('health', [None])[0] == 'check':
-                st.json(health_check())
-                st.stop()
-        except:
-            pass  # Continue normally if query params fail
+            health_check_requested = query_params.get('health', [None])[0] == 'check'
+    except Exception:
+        # If query params fail, continue normally
+        pass
+    
+    if health_check_requested:
+        st.json(health_check())
+        st.stop()
     
     st.markdown(f'<h1 class="main-header">🫀 {APP_TITLE}</h1>', unsafe_allow_html=True)
     
