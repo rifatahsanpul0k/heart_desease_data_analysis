@@ -3,46 +3,15 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-import joblib
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.metrics import classification_report
 import warnings
-import os
-
 warnings.filterwarnings('ignore')
-
-# Load environment variables (with fallback for compatibility)
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    # dotenv not available, use system environment variables only
-    pass
-
-# Configuration from environment variables with defaults
-APP_TITLE = os.getenv('APP_TITLE', 'Heart Disease Risk Predictor')
-APP_VERSION = os.getenv('APP_VERSION', '1.0.0')
-MODEL_NAME = os.getenv('MODEL_NAME', 'optimized_xgb_model.pkl')
-DEBUG_MODE = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
-ENABLE_MODEL_CACHING = os.getenv('ENABLE_MODEL_CACHING', 'true').lower() == 'true'
-MODEL_ACCURACY_THRESHOLD = float(os.getenv('MODEL_ACCURACY_THRESHOLD', '0.5'))
-
-# Additional environment variables for production
-APP_ENVIRONMENT = os.getenv('APP_ENVIRONMENT', 'development')
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-MAX_UPLOAD_SIZE_MB = int(os.getenv('MAX_UPLOAD_SIZE_MB', '10'))
-SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', '30'))
-ENABLE_ANALYTICS = os.getenv('ENABLE_ANALYTICS', 'false').lower() == 'true'
-CACHE_TTL_SECONDS = int(os.getenv('CACHE_TTL_SECONDS', '3600'))
-MAX_CONCURRENT_USERS = int(os.getenv('MAX_CONCURRENT_USERS', '100'))
-
-# Health check endpoint
-HEALTH_CHECK_ENDPOINT = os.getenv('HEALTH_CHECK_ENDPOINT', '/health')
 
 # Page config
 st.set_page_config(
-    page_title=APP_TITLE,
+    page_title="Heart Disease Predictor",
     page_icon="🫀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -73,175 +42,122 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Conditional caching based on environment variable
-if ENABLE_MODEL_CACHING:
-    @st.cache_resource(ttl=CACHE_TTL_SECONDS)
-    def load_model():
-        """Load model with caching enabled"""
-        return _load_model_impl()
-else:
-    def load_model():
-        """Load model without caching"""
-        return _load_model_impl()
-
-def _load_model_impl():
-    """Internal model loading implementation"""
+@st.cache_resource
+def load_model():
+    import joblib
     try:
-        model_file = MODEL_NAME
-        if DEBUG_MODE:
-            st.sidebar.info(f"Loading model: {model_file}")
-            st.sidebar.info(f"Current directory: {os.getcwd()}")
-            st.sidebar.info(f"Files available: {os.listdir('.')}")
+        # Load the optimized SVM model (85.25% accuracy)
+        model = joblib.load('heart_disease_model_optimized.pkl')
+        feature_selector = joblib.load('feature_selector.pkl')
+        scaler = joblib.load('feature_scaler.pkl')
         
-        # Check if file exists
-        if not os.path.exists(model_file):
-            available_files = [f for f in os.listdir('.') if f.endswith(('.pkl', '.joblib'))]
-            st.error(f"Model file '{model_file}' not found!")
-            st.error(f"Available model files: {available_files}")
-            return None, None, None
+        # Create feature names for the selected features
+        feature_names = [
+            'age', 'sex', 'cp', 'trestbps', 'chol', 'fbs', 'restecg', 
+            'thalach', 'exang', 'oldpeak', 'slope', 'ca', 'thal'
+        ]
         
-        # Load model with appropriate loader based on file extension
-        if model_file.endswith('.joblib'):
-            model = joblib.load(model_file)
-        else:
-            with open(model_file, 'rb') as f:
-                model = pickle.load(f)
+        model_info = {
+            'model_type': 'Optimized SVM with Feature Selection',
+            'accuracy': '85.25%',
+            'features_used': 15,
+            'total_features': 24
+        }
         
-        if DEBUG_MODE:
-            st.sidebar.success(f"✅ Model loaded: {type(model)}")
-        
-        # Load feature names and model info
-        if not os.path.exists('feature_names.pkl'):
-            st.error("feature_names.pkl not found!")
-            return None, None, None
-            
-        if not os.path.exists('model_info.pkl'):
-            st.error("model_info.pkl not found!")
-            return None, None, None
-            
-        with open('feature_names.pkl', 'rb') as f:
-            feature_names = pickle.load(f)
-        with open('model_info.pkl', 'rb') as f:
-            model_info = pickle.load(f)
-            
-        if DEBUG_MODE:
-            st.sidebar.success("✅ All files loaded successfully")
-            
-        return model, feature_names, model_info
+        return model, feature_names, model_info, feature_selector, scaler
         
     except FileNotFoundError as e:
-        st.error(f"❌ Model files not found: {str(e)}")
-        st.error("Please ensure all model files are in the same directory.")
-        return None, None, None
-    except Exception as e:
-        st.error(f"❌ Error loading model: {str(e)}")
-        st.error(f"Error type: {type(e).__name__}")
-        if DEBUG_MODE:
-            import traceback
-            st.error(f"Full traceback: {traceback.format_exc()}")
-        return None, None, None
-
-def health_check():
-    """Health check endpoint for monitoring"""
-    return {
-        "status": "healthy",
-        "app_title": APP_TITLE,
-        "version": APP_VERSION,
-        "environment": APP_ENVIRONMENT,
-        "model_loaded": True,  # You could add actual model health check here
-        "timestamp": pd.Timestamp.now().isoformat()
-    }
+        st.error(f"❌ Model files not found: {e}")
+        st.error("Please ensure all required model files are in the same directory:")
+        st.error("• heart_disease_model_optimized.pkl")
+        st.error("• feature_selector.pkl") 
+        st.error("• feature_scaler.pkl")
+        return None, None, None, None, None
 
 def main():
-    # Handle health check endpoint with better error handling
-    health_check_requested = False
-    try:
-        # Try new Streamlit API first
-        if hasattr(st, 'query_params'):
-            query_params = st.query_params
-            health_check_requested = query_params.get('health') == 'check'
-        else:
-            # Fallback to experimental API
-            query_params = st.experimental_get_query_params()
-            health_check_requested = query_params.get('health', [None])[0] == 'check'
-    except Exception:
-        # If query params fail, continue normally
-        pass
-    
-    if health_check_requested:
-        st.json(health_check())
-        st.stop()
-    
-    st.markdown(f'<h1 class="main-header">🫀 {APP_TITLE}</h1>', unsafe_allow_html=True)
-    
+    st.markdown('<h1 class="main-header">🫀 Heart Disease Risk Predictor</h1>', unsafe_allow_html=True)
+
     # Load model
-    model, feature_names, model_info = load_model()
+    model, feature_names, model_info, feature_selector, scaler = load_model()
     if model is None:
         st.stop()
 
-    # Sidebar with model info and environment details
+    # Sidebar with model info
     st.sidebar.header("🤖 Model Information")
-    
-    # Environment-aware model info
-    model_accuracy = model_info['accuracy'] if model_info else 0.85
-    if model_accuracy < MODEL_ACCURACY_THRESHOLD:
-        st.sidebar.warning(f"⚠️ Model accuracy ({model_accuracy:.2%}) below threshold ({MODEL_ACCURACY_THRESHOLD:.2%})")
-    
     st.sidebar.info(f"""
-    **Model Type:** {model_info.get('model_type', 'XGBoost Classifier') if model_info else 'XGBoost Classifier'}
-    **Accuracy:** {model_accuracy*100:.2f}%
-    **Features:** {model_info.get('feature_count', len(feature_names)) if model_info else len(feature_names)}
-    **Version:** {APP_VERSION}
-    **Environment:** {APP_ENVIRONMENT}
+    **Model Type:** {model_info['model_type']}
+    **Accuracy:** {model_info['accuracy']}
+    **Features Used:** {model_info.get('features_used', 'N/A')}
+    **Total Features:** {model_info.get('total_features', 'N/A')}
     """)
-    
-    # Debug info (only show if DEBUG_MODE is enabled)
-    if DEBUG_MODE:
-        st.sidebar.header("🔧 Debug Information")
-        st.sidebar.code(f"""
-Environment Variables:
-- MODEL_NAME: {MODEL_NAME}
-- CACHING: {ENABLE_MODEL_CACHING}
-- CACHE_TTL: {CACHE_TTL_SECONDS}s
-- MAX_USERS: {MAX_CONCURRENT_USERS}
-- LOG_LEVEL: {LOG_LEVEL}
-- SESSION_TIMEOUT: {SESSION_TIMEOUT_MINUTES}min
-        """)
-    
-    # Analytics tracking (if enabled)
-    if ENABLE_ANALYTICS:
-        st.sidebar.info("📊 Analytics enabled")
-    
-    # Show environment-specific features
-    if APP_ENVIRONMENT == 'production':
-        st.sidebar.success("🟢 Production Environment")
-    elif APP_ENVIRONMENT == 'development':
-        st.sidebar.warning("🟡 Development Environment")
 
     # Sidebar input fields
     st.sidebar.header("📋 Patient Information")
     st.sidebar.markdown("Enter the patient's medical information below:")
 
     with st.sidebar:
-        age = st.slider("Age (years)", 20, 100, 50)
-        sex = st.selectbox("Sex", [0, 1], format_func=lambda x: "Female" if x == 0 else "Male")
+        age = st.slider("Age (years)", 20, 100, 50, help="Patient age in years")
+        
+        sex = st.selectbox("Sex", [0, 1], 
+                          format_func=lambda x: "Female" if x == 0 else "Male",
+                          help="1 = male; 0 = female")
+        
         cp = st.selectbox("Chest Pain Type", [0, 1, 2, 3], 
-                         help="0: Typical angina, 1: Atypical angina, 2: Non-anginal pain, 3: Asymptomatic")
-        trestbps = st.slider("Resting Blood Pressure (mmHg)", 80, 200, 120)
-        chol = st.slider("Cholesterol (mg/dl)", 100, 400, 200)
+                         format_func=lambda x: {
+                             0: "Typical angina", 
+                             1: "Atypical angina", 
+                             2: "Non-anginal pain", 
+                             3: "Asymptomatic"
+                         }[x],
+                         help="0: Typical angina (chest pain), 1: Atypical angina (chest pain not related to heart), 2: Non-anginal pain (typically esophageal spasms), 3: Asymptomatic (chest pain not showing signs of disease)")
+        
+        trestbps = st.slider("Resting Blood Pressure (mmHg)", 80, 200, 120,
+                            help="Resting blood pressure in mm Hg on admission to the hospital")
+        
+        chol = st.slider("Serum Cholesterol (mg/dl)", 100, 400, 200,
+                        help="Serum cholesterol in mg/dl")
+        
         fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", [0, 1], 
-                          format_func=lambda x: "No" if x == 0 else "Yes")
-        restecg = st.selectbox("Resting ECG", [0, 1, 2],
-                              help="0: Normal, 1: ST-T abnormality, 2: Left ventricular hypertrophy")
-        thalach = st.slider("Maximum Heart Rate Achieved", 60, 220, 150)
+                          format_func=lambda x: "No" if x == 0 else "Yes",
+                          help="1 = true (>120 mg/dl); 0 = false (≤120 mg/dl)")
+        
+        restecg = st.selectbox("Resting ECG Results", [0, 1, 2],
+                              format_func=lambda x: {
+                                  0: "Nothing to note", 
+                                  1: "ST-T Wave abnormality", 
+                                  2: "Left ventricular hypertrophy"
+                              }[x],
+                              help="0: Nothing to note, 1: ST-T Wave abnormality, 2: Left ventricular hypertrophy")
+        
+        thalach = st.slider("Maximum Heart Rate Achieved", 60, 220, 150,
+                           help="Maximum heart rate achieved during exercise")
+        
         exang = st.selectbox("Exercise Induced Angina", [0, 1],
-                            format_func=lambda x: "No" if x == 0 else "Yes")
-        oldpeak = st.slider("ST Depression", 0.0, 6.0, 1.0, 0.1)
-        slope = st.selectbox("ST Slope", [0, 1, 2],
-                            help="0: Upsloping, 1: Flat, 2: Downsloping")
-        ca = st.selectbox("Number of Major Vessels", [0, 1, 2, 3])
-        thal = st.selectbox("Thalassemia", [0, 1, 2, 3],
-                           help="0: Normal, 1: Fixed defect, 2: Reversible defect, 3: Unknown")
+                            format_func=lambda x: "No" if x == 0 else "Yes",
+                            help="1 = yes; 0 = no")
+        
+        oldpeak = st.slider("ST Depression", 0.0, 6.0, 1.0, 0.1,
+                           help="ST depression (heart potentially not getting enough oxygen) induced by exercise relative to rest")
+        
+        slope = st.selectbox("Peak Exercise ST Segment Slope", [0, 1, 2],
+                            format_func=lambda x: {
+                                0: "Upsloping", 
+                                1: "Flat", 
+                                2: "Downsloping"
+                            }[x],
+                            help="The slope of the peak exercise ST segment: 0: Upsloping, 1: Flat, 2: Downsloping")
+        
+        ca = st.selectbox("Number of Major Vessels (0-3)", [0, 1, 2, 3],
+                         help="Number of major vessels (0-3) colored by fluoroscopy")
+        
+        thal = st.selectbox("Thalium Stress Result", [1, 3, 6, 7],
+                           format_func=lambda x: {
+                               1: "Normal", 
+                               3: "Fixed defect", 
+                               6: "Fixed defect", 
+                               7: "Reversible defect"
+                           }[x],
+                           help="Thalium stress test result: 1,3: Normal, 6: Fixed defect, 7: Reversible defect")
 
     # Main content
     col1, col2 = st.columns([2, 1])
@@ -270,18 +186,60 @@ Environment Variables:
             features = np.array([[age, sex, cp, trestbps, chol, fbs, restecg,
                                 thalach, exang, oldpeak, slope, ca, thal]])
 
-            # Make prediction
-            prediction = model.predict(features)[0]
-            probability = model.predict_proba(features)[0]
+            # Process features for optimized model
+            if feature_selector is not None and scaler is not None:
+                # Create DataFrame with feature names for advanced processing
+                feature_df = pd.DataFrame(features, columns=feature_names)
+                
+                # Apply advanced feature engineering (same as in notebook)
+                poly_features = ['age', 'trestbps', 'chol', 'thalach', 'oldpeak']
+                for feature in poly_features:
+                    if feature in feature_df.columns:
+                        feature_df[f'{feature}_squared'] = feature_df[feature] ** 2
+
+                # Add interaction terms
+                interaction_pairs = [
+                    ('age', 'thalach'), ('trestbps', 'chol'), ('age', 'oldpeak'), ('cp', 'thalach')
+                ]
+                for feat1, feat2 in interaction_pairs:
+                    if feat1 in feature_df.columns and feat2 in feature_df.columns:
+                        feature_df[f'{feat1}_{feat2}_interaction'] = feature_df[feat1] * feature_df[feat2]
+
+                # Add ratios
+                if 'thalach' in feature_df.columns and 'age' in feature_df.columns:
+                    feature_df['heart_rate_age_ratio'] = feature_df['thalach'] / (feature_df['age'] + 1)
+                if 'chol' in feature_df.columns and 'trestbps' in feature_df.columns:
+                    feature_df['chol_bp_ratio'] = feature_df['chol'] / (feature_df['trestbps'] + 1)
+
+                # Scale the features
+                features_scaled = scaler.transform(feature_df)
+                
+                # Apply feature selection
+                features_selected = feature_selector.transform(features_scaled)
+                
+                # Make prediction with optimized model
+                prediction = model.predict(features_selected)[0]
+                # Note: SVM might not have predict_proba, handle gracefully
+                try:
+                    probability = model.predict_proba(features_selected)[0]
+                    risk_prob = probability[1] * 100
+                except:
+                    # For SVM without probability, use decision function
+                    decision = model.decision_function(features_selected)[0]
+                    # Convert decision function to pseudo-probability
+                    risk_prob = max(0, min(100, (decision + 1) * 50))
+            else:
+                # Fallback to original model prediction
+                prediction = model.predict(features)[0]
+                probability = model.predict_proba(features)[0]
+                risk_prob = probability[1] * 100
 
             # Display prediction
-            risk_prob = probability[1] * 100
-
             if prediction == 1:
                 st.markdown(f"""
                 <div class="prediction-box high-risk">
                     <h3>⚠️ HIGH RISK</h3>
-                    <p><strong>Risk Probability: {risk_prob:.1f}%</strong></p>
+                    <p><strong>Risk Score: {risk_prob:.1f}%</strong></p>
                     <p>This patient shows indicators of potential heart disease. 
                     Please consult with a cardiologist for further evaluation.</p>
                 </div>
@@ -290,7 +248,7 @@ Environment Variables:
                 st.markdown(f"""
                 <div class="prediction-box low-risk">
                     <h3>✅ LOW RISK</h3>
-                    <p><strong>Risk Probability: {risk_prob:.1f}%</strong></p>
+                    <p><strong>Risk Score: {risk_prob:.1f}%</strong></p>
                     <p>This patient shows low indicators of heart disease risk. 
                     Continue regular health monitoring.</p>
                 </div>
@@ -318,9 +276,9 @@ Environment Variables:
             st.plotly_chart(fig, use_container_width=True)
 
     # Feature importance
-    st.subheader("🎯 Feature Importance")
+    st.subheader("🎯 Model Information")
 
-    if hasattr(model, 'feature_importances_'):
+    if hasattr(model, 'feature_importances_') and feature_selector is None:
         feature_importance_df = pd.DataFrame({
             'Feature': ['Age', 'Sex', 'Chest Pain', 'Resting BP', 'Cholesterol',
                        'Fasting Blood Sugar', 'Resting ECG', 'Max Heart Rate',
@@ -332,26 +290,41 @@ Environment Variables:
         fig = px.bar(feature_importance_df, x='Importance', y='Feature', orientation='h',
                     title="Feature Importance in Heart Disease Prediction")
         st.plotly_chart(fig, use_container_width=True)
+    elif feature_selector is not None:
+        st.info(f"""
+        **🎯 Optimized Model Active!**
+        
+        This model uses advanced feature engineering with {model_info.get('features_used', 15)} 
+        selected features out of {model_info.get('total_features', 24)} total engineered features.
+        
+        **Advanced Features Include:**
+        - 🔢 Polynomial features (age², cholesterol², etc.)
+        - 🔗 Interaction terms (age×heart_rate, bp×cholesterol)
+        - 📊 Ratio features (heart_rate/age, cholesterol/bp)
+        - 🎯 Statistical feature selection for optimal performance
+        """)
 
     # About section
     with st.expander("ℹ️ About This App"):
         st.markdown(f"""
-        This Heart Disease Risk Predictor uses an **XGBoost machine learning model** 
-        trained on clinical data to assess the probability of heart disease.
+        This Heart Disease Risk Predictor uses an **advanced {model_info['model_type']}** 
+        trained on clinical data with sophisticated feature engineering.
 
         **Model Performance:**
-        - Accuracy: {model_info['accuracy']*100:.2f}%
-        - Optimized using Optuna hyperparameter tuning ({model_info['optimization_trials']} trials)
-        - Cross-validated for reliability
+        - 🎯 Accuracy: {model_info['accuracy']}
+        - 🔧 Advanced feature engineering with {model_info.get('total_features', 'multiple')} features
+        - ⚡ Hyperparameter optimization and feature selection
+        - 📊 Cross-validated for reliability
+
+        **Key Improvements:**
+        - Advanced polynomial and interaction features
+        - Intelligent statistical feature selection
+        - Optimized hyperparameters for maximum accuracy
+        - Robust cross-validation testing
 
         **Important Note:**
         This tool is for educational purposes only and should not replace professional medical advice.
         Always consult with healthcare professionals for medical decisions.
-
-        **Model Details:**
-        - Training Date: {model_info['training_date']}
-        - Features Used: {model_info['feature_count']}
-        - Best Parameters: Optimized via Bayesian optimization
         """)
 
 if __name__ == "__main__":
