@@ -358,11 +358,21 @@ st.markdown("""
 
 @st.cache_resource
 def load_model():
+    import os
+    import joblib
+    
+    # Get the current directory (where the script is located)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
     try:
         # Load the Random Forest model (90.16% accuracy)
-        model = joblib.load('heart_disease_model_optimized.pkl')
-        feature_names = joblib.load('feature_names.pkl')
-        model_info = joblib.load('model_info.pkl')
+        model_path = os.path.join(current_dir, 'heart_disease_model_optimized.pkl')
+        feature_names_path = os.path.join(current_dir, 'feature_names.pkl')
+        model_info_path = os.path.join(current_dir, 'model_info.pkl')
+        
+        model = joblib.load(model_path)
+        feature_names = joblib.load(feature_names_path)
+        model_info = joblib.load(model_info_path)
         
         return model, feature_names, model_info
         
@@ -372,6 +382,7 @@ def load_model():
         st.error("• heart_disease_model_optimized.pkl")
         st.error("• feature_names.pkl") 
         st.error("• model_info.pkl")
+        st.error(f"Current directory: {current_dir}")
         return None, None, None
 
 def main():
