@@ -1,13 +1,21 @@
-# Render Environment Variables Configuration
+# 🔧 Render Environment Variables Configuration
 
-Copy and paste these environment variables into your Render service dashboard:
+## 📋 Required Environment Variables
 
-## Required Environment Variables
+Copy these **exactly** into your Render service environment variables:
 
-APP_TITLE=Heart Disease Risk Predictor
-APP_VERSION=1.2.0
-MODEL_NAME=optimized_xgb_model.pkl
-APP_ENVIRONMENT=production
+### **Core Streamlit Variables**
+```
+STREAMLIT_SERVER_HEADLESS=true
+STREAMLIT_SERVER_PORT=$PORT
+STREAMLIT_SERVER_ADDRESS=0.0.0.0
+STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+```
+
+### **Python Configuration**
+```
+PYTHON_VERSION=3.11.4
+```
 DEBUG_MODE=true
 LOG_LEVEL=INFO
 ENABLE_MODEL_CACHING=true

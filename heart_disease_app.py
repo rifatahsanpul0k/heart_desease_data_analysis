@@ -1,17 +1,17 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
+import joblib
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.metrics import classification_report
+from plotly.subplots import make_subplots
 import warnings
 warnings.filterwarnings('ignore')
 
 # Page config
 st.set_page_config(
-    page_title="Heart Disease Predictor",
+    page_title="🫀 Heart Disease Predictor",
     page_icon="🫀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -22,25 +22,339 @@ st.markdown("""
 <style>
     .main-header {
         font-size: 3rem;
-        color: #FF6B6B;
+        color: #262730;
         text-align: center;
         margin-bottom: 2rem;
+        font-weight: 600;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
     }
+    
+    /* Target specific Streamlit element containers */
+    .stElementContainer.element-container.st-emotion-cache-1vo6xi6.e52wr8w0 {
+        background: transparent !important;
+        padding: 0 !important;
+        margin: 1rem 0 !important;
+    }
+    
+    /* Base prediction box styling */
     .prediction-box {
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
+        padding: 2.5rem;
+        border-radius: 25px;
+        margin: 2rem auto;
+        border: none;
+        font-weight: 500;
+        position: relative;
+        overflow: hidden;
+        max-width: 600px;
+        text-align: center;
     }
+    
+    /* HIGH RISK - Dark/Black Theme */
     .high-risk {
-        background-color: #FFE5E5;
-        border-left: 5px solid #FF6B6B;
+        background: linear-gradient(145deg, #000000 0%, #1a1a1a 30%, #333333 100%);
+        color: #ffffff;
+        box-shadow: 
+            0 20px 40px rgba(0, 0, 0, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        border: 2px solid #444444;
     }
+    
+    .high-risk::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(255, 255, 255, 0.3) 20%, 
+            rgba(255, 255, 255, 0.8) 50%, 
+            rgba(255, 255, 255, 0.3) 80%, 
+            transparent 100%);
+    }
+    
+    .high-risk::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(255, 255, 255, 0.2) 50%, 
+            transparent 100%);
+    }
+    
+    .high-risk h3 {
+        color: #ffffff !important;
+        margin-bottom: 1.5rem;
+        font-size: 2.2rem;
+        font-weight: 900;
+        text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
+    
+    .high-risk p {
+        color: #f8f9fa !important;
+        margin-bottom: 1rem;
+        font-size: 1.3rem;
+        line-height: 1.7;
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+    }
+    
+    .high-risk strong {
+        color: #ffffff !important;
+        font-size: 1.6rem;
+        font-weight: 800;
+        display: block;
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        backdrop-filter: blur(10px);
+    }
+    
+    /* LOW RISK - Light/White Theme */
     .low-risk {
-        background-color: #E5F5E5;
-        border-left: 5px solid #4CAF50;
+        background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 30%, #e9ecef 100%);
+        color: #212529;
+        box-shadow: 
+            0 20px 40px rgba(0, 0, 0, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        border: 2px solid #dee2e6;
     }
-</style>
-""", unsafe_allow_html=True)
+    
+    .low-risk::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(33, 37, 41, 0.2) 20%, 
+            rgba(33, 37, 41, 0.4) 50%, 
+            rgba(33, 37, 41, 0.2) 80%, 
+            transparent 100%);
+    }
+    
+    .low-risk::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(108, 117, 125, 0.3) 50%, 
+            transparent 100%);
+    }
+    
+    .low-risk h3 {
+        color: #212529 !important;
+        margin-bottom: 1.5rem;
+        font-size: 2.2rem;
+        font-weight: 900;
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
+    
+    .low-risk p {
+        color: #495057 !important;
+        margin-bottom: 1rem;
+        font-size: 1.3rem;
+        line-height: 1.7;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.05);
+    }
+    
+    .low-risk strong {
+        color: #212529 !important;
+        font-size: 1.6rem;
+        font-weight: 800;
+        display: block;
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+        background: rgba(33, 37, 41, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(33, 37, 41, 0.1);
+    }
+    
+    /* Enhanced sidebar styling */
+    div[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+        border-right: 2px solid #dee2e6;
+    }
+    
+    /* Override Streamlit's default container styling for our prediction boxes */
+    .stElementContainer:has(.prediction-box) {
+        background: transparent !important;
+        padding: 0 !important;
+        margin: 2rem 0 !important;
+    }
+    
+    /* Custom button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #212529 0%, #495057 100%);
+        color: white;
+        border: none;
+        border-radius: 15px;
+        font-weight: 700;
+        font-size: 1.2rem;
+        padding: 1rem 2.5rem;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+        background: linear-gradient(135deg, #000000 0%, #212529 100%);
+    }
+    
+    .stSelectbox > div > div {
+        background-color: #ffffff;
+        border: 2px solid #ced4da;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+    
+    .stSelectbox > div > div:hover {
+        border-color: #495057;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .stSlider > div > div > div {
+        background-color: #ffffff;
+        border-radius: 10px;
+    }
+    
+    /* Additional CSS for specific Streamlit container targeting */
+    .st-emotion-cache-1vo6xi6 {
+        background: transparent !important;
+        padding: 0 !important;
+        border: none !important;
+    }
+    
+    .e52wr8w0 {
+        margin: 1rem 0 !important;
+    }
+    
+    /* High Risk - Dark Military/Alert Style */
+    .high-risk {
+        position: relative;
+        background: 
+            linear-gradient(145deg, #000000 0%, #1a1a1a 25%, #2d2d2d 75%, #1a1a1a 100%) !important;
+        border: 3px solid #333333 !important;
+        border-radius: 20px !important;
+        color: #ffffff !important;
+        padding: 2.5rem !important;
+        margin: 2rem auto !important;
+        max-width: 700px !important;
+        text-align: center !important;
+        box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.5),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 30px rgba(255, 255, 255, 0.05) !important;
+    }
+    
+    .high-risk::before {
+        content: '🚨' !important;
+        position: absolute !important;
+        top: -15px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        font-size: 2rem !important;
+        background: #000000 !important;
+        padding: 0.5rem 1rem !important;
+        border-radius: 50% !important;
+        border: 3px solid #ff0000 !important;
+        animation: blink 1.5s infinite !important;
+    }
+    
+    @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0.3; }
+    }
+    
+    /* Low Risk - Clean Medical/Professional Style */
+    .low-risk {
+        position: relative;
+        background: 
+            linear-gradient(145deg, #ffffff 0%, #f8f9fa 25%, #e9ecef 75%, #f8f9fa 100%) !important;
+        border: 3px solid #28a745 !important;
+        border-radius: 20px !important;
+        color: #212529 !important;
+        padding: 2.5rem !important;
+        margin: 2rem auto !important;
+        max-width: 700px !important;
+        text-align: center !important;
+        box-shadow: 
+            0 25px 50px rgba(0, 0, 0, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.8),
+            0 0 30px rgba(40, 167, 69, 0.1) !important;
+    }
+    
+    .low-risk::before {
+        content: '✅' !important;
+        position: absolute !important;
+        top: -15px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        font-size: 2rem !important;
+        background: #ffffff !important;
+        padding: 0.5rem 1rem !important;
+        border-radius: 50% !important;
+        border: 3px solid #28a745 !important;
+        animation: pulse-success 2s infinite !important;
+    }
+    
+    @keyframes pulse-success {
+        0%, 100% { 
+            transform: translateX(-50%) scale(1); 
+            box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); 
+        }
+        50% { 
+            transform: translateX(-50%) scale(1.1); 
+            box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); 
+        }
+    }
+    
+    /* Override any Streamlit container styling that might interfere */
+    div[data-testid="stMarkdownContainer"] .prediction-box {
+        margin: 2rem auto !important;
+    }
+    
+    /* Make sure text is properly visible in each theme */
+    .high-risk * {
+        color: #ffffff !important;
+    }
+    
+    .low-risk * {
+        color: #212529 !important;
+    }
+    
+    .high-risk strong {
+        background: rgba(255, 255, 255, 0.1) !important;
+        padding: 0.3rem 0.6rem !important;
+        border-radius: 8px !important;
+        backdrop-filter: blur(5px) !important;
+    }
+    
+    .low-risk strong {
+        background: rgba(40, 167, 69, 0.1) !important;
+        padding: 0.3rem 0.6rem !important;
+        border-radius: 8px !important;
+        color: #155724 !important;
+    }
+</style>""", unsafe_allow_html=True)
 
 @st.cache_resource
 def load_model():
@@ -237,21 +551,43 @@ def main():
             # Display prediction
             if prediction == 1:
                 st.markdown(f"""
-                <div class="prediction-box high-risk">
-                    <h3>⚠️ HIGH RISK</h3>
-                    <p><strong>Risk Score: {risk_prob:.1f}%</strong></p>
-                    <p>This patient shows indicators of potential heart disease. 
-                    Please consult with a cardiologist for further evaluation.</p>
+                <div class="prediction-box high-risk" style="animation: pulse-danger 2s infinite;">
+                    <h3>🚨 CRITICAL RISK ALERT</h3>
+                    <p><strong>⚡ Risk Assessment: {risk_prob:.1f}%</strong></p>
+                    <p>🔍 <strong>URGENT:</strong> Analysis indicates significant risk factors for cardiovascular disease. 
+                    Immediate medical consultation with a cardiologist is <em>strongly recommended</em> 
+                    for comprehensive evaluation and immediate risk management protocol.</p>
+                    <p style="margin-top: 1.5rem; font-size: 0.9rem; opacity: 0.8;">
+                    ⏰ <strong>Next Steps:</strong> Schedule cardiology appointment within 48-72 hours
+                    </p>
                 </div>
+                
+                <style>
+                @keyframes pulse-danger {{
+                    0%, 100% {{ box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(255, 255, 255, 0.1); }}
+                    50% {{ box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 0 0 10px rgba(255, 255, 255, 0.05); }}
+                }}
+                </style>
                 """, unsafe_allow_html=True)
             else:
                 st.markdown(f"""
-                <div class="prediction-box low-risk">
-                    <h3>✅ LOW RISK</h3>
-                    <p><strong>Risk Score: {risk_prob:.1f}%</strong></p>
-                    <p>This patient shows low indicators of heart disease risk. 
-                    Continue regular health monitoring.</p>
+                <div class="prediction-box low-risk" style="animation: glow-safe 3s infinite;">
+                    <h3>✅ OPTIMAL HEALTH PROFILE</h3>
+                    <p><strong>💚 Risk Assessment: {risk_prob:.1f}%</strong></p>
+                    <p>🌟 <strong>EXCELLENT:</strong> Cardiovascular health indicators show minimal risk factors. 
+                    Current health profile suggests <em>low probability</em> of heart disease. 
+                    Continue maintaining healthy lifestyle practices and regular monitoring.</p>
+                    <p style="margin-top: 1.5rem; font-size: 0.9rem; opacity: 0.7;">
+                    📅 <strong>Recommendation:</strong> Annual cardiac health screening recommended
+                    </p>
                 </div>
+                
+                <style>
+                @keyframes glow-safe {{
+                    0%, 100% {{ box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), 0 0 0 0 rgba(33, 37, 41, 0.05); }}
+                    50% {{ box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15), 0 0 0 8px rgba(33, 37, 41, 0.02); }}
+                }}
+                </style>
                 """, unsafe_allow_html=True)
 
             # Risk gauge
@@ -259,20 +595,25 @@ def main():
                 mode = "gauge+number",
                 value = risk_prob,
                 domain = {'x': [0, 1], 'y': [0, 1]},
-                title = {'text': "Heart Disease Risk (%)"},
+                title = {'text': "Heart Disease Risk (%)", 'font': {'color': '#262730', 'size': 20}},
                 gauge = {
-                    'axis': {'range': [None, 100]},
-                    'bar': {'color': "darkblue"},
+                    'axis': {'range': [None, 100], 'tickcolor': '#262730', 'tickfont': {'color': '#262730'}},
+                    'bar': {'color': "#000000"},
                     'steps': [
-                        {'range': [0, 30], 'color': "lightgreen"},
-                        {'range': [30, 70], 'color': "yellow"},
-                        {'range': [70, 100], 'color': "red"}],
+                        {'range': [0, 30], 'color': "#f8f9fa"},
+                        {'range': [30, 70], 'color': "#dee2e6"},
+                        {'range': [70, 100], 'color': "#6c757d"}],
                     'threshold': {
-                        'line': {'color': "red", 'width': 4},
+                        'line': {'color': "#000000", 'width': 4},
                         'thickness': 0.75,
-                        'value': 90}}))
+                        'value': 85}}))
 
-            fig.update_layout(height=300)
+            fig.update_layout(
+                height=300,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font={'color': '#262730'}
+            )
             st.plotly_chart(fig, use_container_width=True)
 
     # Feature importance
