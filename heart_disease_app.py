@@ -358,41 +358,27 @@ st.markdown("""
 
 @st.cache_resource
 def load_model():
-    import joblib
     try:
-        # Load the optimized SVM model (85.25% accuracy)
+        # Load the Random Forest model (90.16% accuracy)
         model = joblib.load('heart_disease_model_optimized.pkl')
-        feature_selector = joblib.load('feature_selector.pkl')
-        scaler = joblib.load('feature_scaler.pkl')
+        feature_names = joblib.load('feature_names.pkl')
+        model_info = joblib.load('model_info.pkl')
         
-        # Create feature names for the selected features
-        feature_names = [
-            'age', 'sex', 'cp', 'trestbps', 'chol', 'fbs', 'restecg', 
-            'thalach', 'exang', 'oldpeak', 'slope', 'ca', 'thal'
-        ]
-        
-        model_info = {
-            'model_type': 'Optimized SVM with Feature Selection',
-            'accuracy': '85.25%',
-            'features_used': 15,
-            'total_features': 24
-        }
-        
-        return model, feature_names, model_info, feature_selector, scaler
+        return model, feature_names, model_info
         
     except FileNotFoundError as e:
         st.error(f"❌ Model files not found: {e}")
         st.error("Please ensure all required model files are in the same directory:")
         st.error("• heart_disease_model_optimized.pkl")
-        st.error("• feature_selector.pkl") 
-        st.error("• feature_scaler.pkl")
-        return None, None, None, None, None
+        st.error("• feature_names.pkl") 
+        st.error("• model_info.pkl")
+        return None, None, None
 
 def main():
     st.markdown('<h1 class="main-header">🫀 Heart Disease Risk Predictor</h1>', unsafe_allow_html=True)
 
     # Load model
-    model, feature_names, model_info, feature_selector, scaler = load_model()
+    model, feature_names, model_info = load_model()
     if model is None:
         st.stop()
 
@@ -500,53 +486,10 @@ def main():
             features = np.array([[age, sex, cp, trestbps, chol, fbs, restecg,
                                 thalach, exang, oldpeak, slope, ca, thal]])
 
-            # Process features for optimized model
-            if feature_selector is not None and scaler is not None:
-                # Create DataFrame with feature names for advanced processing
-                feature_df = pd.DataFrame(features, columns=feature_names)
-                
-                # Apply advanced feature engineering (same as in notebook)
-                poly_features = ['age', 'trestbps', 'chol', 'thalach', 'oldpeak']
-                for feature in poly_features:
-                    if feature in feature_df.columns:
-                        feature_df[f'{feature}_squared'] = feature_df[feature] ** 2
-
-                # Add interaction terms
-                interaction_pairs = [
-                    ('age', 'thalach'), ('trestbps', 'chol'), ('age', 'oldpeak'), ('cp', 'thalach')
-                ]
-                for feat1, feat2 in interaction_pairs:
-                    if feat1 in feature_df.columns and feat2 in feature_df.columns:
-                        feature_df[f'{feat1}_{feat2}_interaction'] = feature_df[feat1] * feature_df[feat2]
-
-                # Add ratios
-                if 'thalach' in feature_df.columns and 'age' in feature_df.columns:
-                    feature_df['heart_rate_age_ratio'] = feature_df['thalach'] / (feature_df['age'] + 1)
-                if 'chol' in feature_df.columns and 'trestbps' in feature_df.columns:
-                    feature_df['chol_bp_ratio'] = feature_df['chol'] / (feature_df['trestbps'] + 1)
-
-                # Scale the features
-                features_scaled = scaler.transform(feature_df)
-                
-                # Apply feature selection
-                features_selected = feature_selector.transform(features_scaled)
-                
-                # Make prediction with optimized model
-                prediction = model.predict(features_selected)[0]
-                # Note: SVM might not have predict_proba, handle gracefully
-                try:
-                    probability = model.predict_proba(features_selected)[0]
-                    risk_prob = probability[1] * 100
-                except:
-                    # For SVM without probability, use decision function
-                    decision = model.decision_function(features_selected)[0]
-                    # Convert decision function to pseudo-probability
-                    risk_prob = max(0, min(100, (decision + 1) * 50))
-            else:
-                # Fallback to original model prediction
-                prediction = model.predict(features)[0]
-                probability = model.predict_proba(features)[0]
-                risk_prob = probability[1] * 100
+            # Make prediction with Random Forest model (no preprocessing needed)
+            prediction = model.predict(features)[0]
+            probability = model.predict_proba(features)[0]
+            risk_prob = probability[1] * 100
 
             # Display prediction
             if prediction == 1:
@@ -619,7 +562,7 @@ def main():
     # Feature importance
     st.subheader("🎯 Model Information")
 
-    if hasattr(model, 'feature_importances_') and feature_selector is None:
+    if hasattr(model, 'feature_importances_'):
         feature_importance_df = pd.DataFrame({
             'Feature': ['Age', 'Sex', 'Chest Pain', 'Resting BP', 'Cholesterol',
                        'Fasting Blood Sugar', 'Resting ECG', 'Max Heart Rate',
@@ -631,18 +574,19 @@ def main():
         fig = px.bar(feature_importance_df, x='Importance', y='Feature', orientation='h',
                     title="Feature Importance in Heart Disease Prediction")
         st.plotly_chart(fig, use_container_width=True)
-    elif feature_selector is not None:
+    else:
         st.info(f"""
-        **🎯 Optimized Model Active!**
+        **🎯 Random Forest Model Active!**
         
-        This model uses advanced feature engineering with {model_info.get('features_used', 15)} 
-        selected features out of {model_info.get('total_features', 24)} total engineered features.
+        This model uses all {len(feature_names)} medical features directly 
+        with {model_info['accuracy']*100:.1f}% accuracy.
         
-        **Advanced Features Include:**
-        - 🔢 Polynomial features (age², cholesterol², etc.)
-        - 🔗 Interaction terms (age×heart_rate, bp×cholesterol)
-        - 📊 Ratio features (heart_rate/age, cholesterol/bp)
-        - 🎯 Statistical feature selection for optimal performance
+        **Features Used:**
+        - � Age, Sex, Chest Pain Type
+        - 🩸 Blood Pressure & Cholesterol
+        - � Heart Rate & Exercise Response  
+        - 📈 ECG Results & ST Measurements
+        - 🧬 Thalassemia & Vessel Count
         """)
 
     # About section
