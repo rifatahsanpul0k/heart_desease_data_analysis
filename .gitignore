@@ -1,9 +1,8 @@
-# Environment Variables
+# Environment Variables (but allow .env.production for deployment)
 .env
-*.env
 .env.local
-.env.production
 .env.staging
+.env.example
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -178,6 +177,7 @@ checkpoints/
 *.weights
 
 # Experiment tracking
+# ML and experiment tracking
 mlruns/
 .mlflow/
 wandb/
@@ -190,3 +190,21 @@ wandb/
 # Log files
 *.log
 logs/
+
+# Development and debugging files
+debug_*.py
+test_*.py
+*_test.py
+*_debug.py
+high_risk_*.py
+use_model.py
+
+# Unused model files
+feature_scaler.pkl
+feature_selector.pkl
+
+# Documentation drafts
+DEPLOYMENT.md
+QUICK_DEPLOY_*.md
+RENDER_*.md
+USAGE_*.md
