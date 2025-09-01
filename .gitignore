@@ -161,6 +161,7 @@ checkpoints/
 # Allow specific model files for deployment
 !optimized_xgb_model.pkl
 !optimized_xgb_model.joblib
+!heart_disease_model_optimized.pkl
 !feature_names.pkl
 !model_info.pkl
 

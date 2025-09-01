@@ -361,29 +361,64 @@ def load_model():
     import os
     import joblib
     
-    # Get the current directory (where the script is located)
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Multiple possible paths for model files
+    possible_dirs = [
+        os.path.dirname(os.path.abspath(__file__)),  # Same directory as script
+        os.getcwd(),  # Current working directory
+        '/opt/render/project/src',  # Render deployment path
+        '.',  # Current directory
+    ]
     
+    model_files = {
+        'model': 'heart_disease_model_optimized.pkl',
+        'features': 'feature_names.pkl',
+        'info': 'model_info.pkl'
+    }
+    
+    # Try each directory until we find the files
+    for directory in possible_dirs:
+        try:
+            file_paths = {}
+            all_exist = True
+            
+            # Check if all files exist in this directory
+            for key, filename in model_files.items():
+                file_path = os.path.join(directory, filename)
+                if os.path.exists(file_path):
+                    file_paths[key] = file_path
+                else:
+                    all_exist = False
+                    break
+            
+            if all_exist:
+                # Load all model files
+                model = joblib.load(file_paths['model'])
+                feature_names = joblib.load(file_paths['features'])
+                model_info = joblib.load(file_paths['info'])
+                
+                st.success(f"✅ Model loaded successfully from: {directory}")
+                return model, feature_names, model_info
+                
+        except Exception as e:
+            continue  # Try next directory
+    
+    # If we get here, no directory worked
+    st.error("❌ Model files not found in any expected location!")
+    st.error("Searched directories:")
+    for i, directory in enumerate(possible_dirs, 1):
+        st.error(f"{i}. {directory}")
+    st.error("Required files:")
+    for filename in model_files.values():
+        st.error(f"• {filename}")
+    
+    # Show current directory contents for debugging
     try:
-        # Load the Random Forest model (90.16% accuracy)
-        model_path = os.path.join(current_dir, 'heart_disease_model_optimized.pkl')
-        feature_names_path = os.path.join(current_dir, 'feature_names.pkl')
-        model_info_path = os.path.join(current_dir, 'model_info.pkl')
+        current_files = os.listdir(os.getcwd())
+        st.error(f"Files in current directory: {current_files}")
+    except:
+        pass
         
-        model = joblib.load(model_path)
-        feature_names = joblib.load(feature_names_path)
-        model_info = joblib.load(model_info_path)
-        
-        return model, feature_names, model_info
-        
-    except FileNotFoundError as e:
-        st.error(f"❌ Model files not found: {e}")
-        st.error("Please ensure all required model files are in the same directory:")
-        st.error("• heart_disease_model_optimized.pkl")
-        st.error("• feature_names.pkl") 
-        st.error("• model_info.pkl")
-        st.error(f"Current directory: {current_dir}")
-        return None, None, None
+    return None, None, None
 
 def main():
     st.markdown('<h1 class="main-header">🫀 Heart Disease Risk Predictor</h1>', unsafe_allow_html=True)
