@@ -209,3 +209,12 @@ DEPLOYMENT.md
 QUICK_DEPLOY_*.md
 RENDER_*.md
 USAGE_*.md
+
+# Allow GitHub Pages assets
+!index.html
+!assets/
+!assets/*
+!.github/
+!.github/workflows/
+!.github/workflows/pages.yml
+!README.md

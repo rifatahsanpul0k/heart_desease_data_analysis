@@ -1,0 +1,42 @@
+# GitHub Pages Configuration
+title: "Heart Disease Data Analysis"
+description: "AI-powered heart disease risk prediction and data analysis using machine learning"
+url: "https://rifatahsanpul0k.github.io"
+baseurl: "/heart_desease_data_analysis"
+
+# Theme
+theme: null
+
+# Exclude files from Jekyll processing
+exclude:
+  - "*.py"
+  - "*.pkl"
+  - ".env*"
+  - "requirements.txt"
+  - "README.md"
+  - ".gitignore"
+
+# Include specific files and folders
+include:
+  - "assets/"
+  - "index.html"
+  - "_config.yml"
+
+# Plugins
+plugins: []
+
+# Markdown
+markdown: kramdown
+highlighter: rouge
+
+# Build settings
+safe: true
+source: .
+destination: ./_site
+incremental: false
+highlighter: rouge
+gist:
+  noscript: false
+kramdown:
+  math_engine: mathjax
+  syntax_highlighter: rouge
